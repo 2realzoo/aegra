@@ -5,11 +5,24 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aegra_api.models.entity_ids import ENTITY_ID_PATTERN, MAX_ENTITY_ID_LENGTH
+
 
 class AssistantCreate(BaseModel):
     """Request model for creating assistants"""
 
-    assistant_id: str | None = Field(None, description="Unique assistant identifier (auto-generated if not provided)")
+    assistant_id: str | None = Field(
+        None,
+        min_length=1,
+        max_length=MAX_ENTITY_ID_LENGTH,
+        pattern=ENTITY_ID_PATTERN,
+        description=(
+            "Optional client-provided assistant ID. "
+            "Omit or null to let the server generate a UUID. "
+            f"When set, 1-{MAX_ENTITY_ID_LENGTH} characters and not blank "
+            "(must fit PostgreSQL btree keys uncompressed)."
+        ),
+    )
     name: str | None = Field(
         None,
         description="Human-readable assistant name (auto-generated if not provided)",
