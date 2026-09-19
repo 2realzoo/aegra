@@ -3759,7 +3759,7 @@
               }
             ],
             "title": "Name",
-            "description": "The name of the assistant (auto-generated if not provided)"
+            "description": "The name of the assistant. Unchanged when omitted."
           },
           "description": {
             "anyOf": [
@@ -3771,7 +3771,7 @@
               }
             ],
             "title": "Description",
-            "description": "The description of the assistant. Defaults to null."
+            "description": "The description of the assistant. Unchanged when omitted."
           },
           "config": {
             "anyOf": [
@@ -3784,13 +3784,19 @@
               }
             ],
             "title": "Config",
-            "description": "Configuration to use for the graph."
+            "description": "Configuration to use for the graph. Unchanged when omitted."
           },
           "graph_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Graph Id",
-            "description": "The ID of the graph",
-            "default": "agent"
+            "description": "The ID of the graph. Unchanged when omitted."
           },
           "context": {
             "anyOf": [
@@ -3803,7 +3809,7 @@
               }
             ],
             "title": "Context",
-            "description": "The context to use for the graph. Useful when graph is configurable."
+            "description": "The context to use for the graph. Useful when graph is configurable. Unchanged when omitted."
           },
           "metadata": {
             "anyOf": [
@@ -3816,12 +3822,12 @@
               }
             ],
             "title": "Metadata",
-            "description": "Metadata to use for searching and filtering assistants."
+            "description": "Metadata to merge into the assistant's existing metadata."
           }
         },
         "type": "object",
         "title": "AssistantUpdate",
-        "description": "Request model for creating assistants"
+        "description": "Request model for partially updating assistants.\n\nEvery field is optional and defaults to ``None`` so that an omitted field\nis distinguishable from an explicit one via ``model_dump(exclude_unset=True)``:\nomitting ``config`` keeps the stored config, sending ``{\"config\": {}}`` clears it."
       },
       "Body_set_assistant_latest_assistants__assistant_id__latest_post": {
         "properties": {
