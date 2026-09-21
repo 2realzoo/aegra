@@ -141,6 +141,8 @@ async def test_stream_writes_its_first_byte_at_open() -> None:
     thread = await client.threads.create()
     ping_interval = settings.app.sse_ping_interval_secs
 
+    opening = b""
+    first_byte_at: float | None = None
     async with httpx.AsyncClient(base_url=_base_url(), timeout=10.0) as http:
         opened = time.monotonic()
         async with http.stream(
@@ -149,11 +151,20 @@ async def test_stream_writes_its_first_byte_at_open() -> None:
             json={"channels": ["messages"]},
         ) as response:
             assert response.status_code == 200
-            first = await anext(response.aiter_raw())
-            elapsed = time.monotonic() - opened
+            # aiter_raw yields transport chunks, so a frame can arrive split.
+            async for chunk in response.aiter_raw():
+                if not chunk:
+                    continue
+                if first_byte_at is None:
+                    first_byte_at = time.monotonic()
+                opening += chunk
+                if b"\r\n\r\n" in opening:
+                    break
 
+    assert first_byte_at is not None
+    elapsed = first_byte_at - opened
     elog("first byte", {"elapsed": round(elapsed, 3), "ping_interval": ping_interval})
-    assert first.startswith(b": heartbeat")
+    assert opening.startswith(b": heartbeat")
     assert elapsed < ping_interval
 
 
