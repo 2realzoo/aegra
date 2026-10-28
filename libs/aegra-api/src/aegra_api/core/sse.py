@@ -91,7 +91,7 @@ async def sse_to_bytes(inner: AsyncGenerator[str, None]) -> AsyncGenerator[bytes
 
 async def _open_with_keepalive(body: AsyncGenerator[bytes, None], *, keepalive: bool) -> AsyncGenerator[bytes, None]:
     """Send a keepalive before ``body`` so the first byte leaves at open.
-    ASGI holds the response head until a chunk arrives, so first-byte clients would wait a ping interval."""
+    Proxies such as Next.js route handlers hold the response head until a body chunk, stalling first-byte clients."""
     async with contextlib.aclosing(body) as managed:
         if keepalive:
             yield _HEARTBEAT_BYTES
