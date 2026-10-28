@@ -269,6 +269,8 @@ async def stateless_stream_run(
         status_code=response.status_code,
         close_handler=inner_close_handler,
         headers=dict(response.headers),
+        # The inner body already opens with a keepalive.
+        open_with_keepalive=False,
     )
 
 

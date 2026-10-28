@@ -264,11 +264,7 @@ class TestStreamRoute:
 
     def test_stream_opens_with_a_keepalive_before_any_event(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The stream's first bytes are a keepalive, not its first event.
-
-        The SDK rotates its shared subscription by awaiting the new stream's
-        first byte, so a stream silent until it has something to say stalls a
-        whole ping interval per rotation.
-        """
+        The SDK awaits a new stream's first byte, so a silent open would stall it a ping interval."""
         run_id = f"run-{uuid.uuid4().hex[:8]}"
 
         async def seed() -> None:

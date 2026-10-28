@@ -71,6 +71,26 @@ class TestMakeSSEResponse:
 
         assert closed is True
 
+    @pytest.mark.asyncio
+    async def test_skips_keepalive_when_body_already_opens_with_one(self) -> None:
+        closed = False
+
+        async def body() -> AsyncGenerator[bytes, None]:
+            nonlocal closed
+            try:
+                yield _HEARTBEAT
+                yield b"event: first\n\n"
+            finally:
+                closed = True
+
+        response = make_sse_response(body(), headers=get_sse_headers(), open_with_keepalive=False)
+        iterator = response.body_iterator
+        assert await anext(iterator) == _HEARTBEAT
+        assert await anext(iterator) == b"event: first\n\n"
+        await iterator.aclose()
+
+        assert closed is True
+
 
 class TestFormatSSEMessage:
     """Test format_sse_message function"""

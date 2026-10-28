@@ -89,22 +89,12 @@ async def sse_to_bytes(inner: AsyncGenerator[str, None]) -> AsyncGenerator[bytes
             yield chunk.encode("utf-8")
 
 
-async def _open_with_keepalive(body: AsyncGenerator[bytes, None]) -> AsyncGenerator[bytes, None]:
-    """Emit one keepalive ahead of ``body`` so the first byte leaves when the stream opens.
-
-    ASGI servers hold the response head until a body chunk arrives, so a stream
-    with nothing to say yet writes nothing for a whole ping interval. A client
-    that treats the first byte as "subscribed" (the LangGraph SDK does, while
-    rotating its shared ``/stream/events`` subscription) waits that long on
-    every open, which on a thread's first run is long enough to miss the run.
-    The payload is the ping's own comment, so this is a keepalive at t=0 rather
-    than a new frame: SSE parsers ignore it and the wire format is unchanged.
-
-    ``aclosing`` keeps ``body``'s cleanup deterministic when sse-starlette
-    aborts the stream mid-flight, matching ``sse_to_bytes``.
-    """
-    yield _HEARTBEAT_BYTES
+async def _open_with_keepalive(body: AsyncGenerator[bytes, None], *, keepalive: bool) -> AsyncGenerator[bytes, None]:
+    """Send a keepalive before ``body`` so the first byte leaves at open.
+    ASGI holds the response head until a chunk arrives, so first-byte clients would wait a ping interval."""
     async with contextlib.aclosing(body) as managed:
+        if keepalive:
+            yield _HEARTBEAT_BYTES
         async for chunk in managed:
             yield chunk
 
@@ -115,16 +105,17 @@ def make_sse_response(
     headers: Mapping[str, str],
     close_handler: Callable[[MutableMapping[str, Any]], Awaitable[None]] | None = None,
     status_code: int = 200,
+    open_with_keepalive: bool = True,
 ) -> EventSourceResponse:
     """Construct an ``EventSourceResponse`` with our shared SSE defaults.
 
     Centralizes ping interval + heartbeat factory so every SSE endpoint
     emits identical wire-format keepalives, and opens each stream with one
-    (see ``_open_with_keepalive``). ``settings`` is read at call time so live
+    unless ``body`` already does. ``settings`` is read at call time so live
     overrides (e.g. tests, env reloads) take effect.
     """
     return EventSourceResponse(
-        _open_with_keepalive(body),
+        _open_with_keepalive(body, keepalive=open_with_keepalive),
         status_code=status_code,
         ping=settings.app.sse_ping_interval_secs,
         ping_message_factory=heartbeat_factory,
