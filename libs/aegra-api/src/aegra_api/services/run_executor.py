@@ -15,6 +15,7 @@ from aegra_api.core.active_runs import active_runs
 from aegra_api.core.auth_ctx import with_auth_ctx
 from aegra_api.core.redis_manager import redis_manager
 from aegra_api.models.run_job import RunJob
+from aegra_api.observability.otel import flush_otel_spans
 from aegra_api.services.broker import broker_manager
 from aegra_api.services.event_streaming.native_stream import stream_native_v3_events
 from aegra_api.services.graph_streaming import stream_graph_events
@@ -139,11 +140,24 @@ async def execute_run(job: RunJob) -> None:
         if not resumes_elsewhere:
             await streaming_service.cleanup_run(run_id)
             await _signal_run_done(run_id)
+            await _best_effort_flush(run_id)
 
 
 # ------------------------------------------------------------------
 # Internal helpers
 # ------------------------------------------------------------------
+
+
+async def _best_effort_flush(run_id: str) -> None:
+    """Flush OTEL after cleanup and completion signaling without disrupting either."""
+    try:
+        flushed = await asyncio.to_thread(flush_otel_spans)
+        if not flushed:
+            logger.warning("OTEL span flush incomplete (some spans may be lost)", run_id=run_id)
+    except asyncio.CancelledError:
+        logger.warning("OTEL span flush cancelled (best-effort)", run_id=run_id)
+    except Exception:
+        logger.warning("OTEL span flush failed (best-effort)", run_id=run_id, exc_info=True)
 
 
 async def _best_effort_signal(fn: Any, *args: Any) -> None:
@@ -212,6 +226,7 @@ async def _stream_legacy(
         stream_mode=stream_modes,
         context=job.execution.context,
         subgraphs=job.behavior.subgraphs,
+        durability=job.execution.durability,
         on_checkpoint=lambda _: None,
         on_task_result=lambda _: None,
     ):
@@ -243,6 +258,7 @@ async def _stream_native_v2(
         input_data=execution_input,
         config=run_config,
         context=job.execution.context,
+        durability=job.execution.durability,
     ):
         event_id = await broker_manager.allocate_event_id(run_id)
         await streaming_service.put_to_broker(run_id, event_id, (method, event))
